@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+# backend-path = ["."] # Not strictly necessary if no setup.py with special logic
+
+[project]
+name = "pure_python_demo"
+version = "0.1.0"
+authors = [
+  { name="Demo User", email="demo@example.com" },
+]
+description = "A pure Python project that depends on and can trigger builds for cpp_python_demo"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+# Ensure the name here matches the 'name' in cpp_python_demo's pyproject.toml
+dependencies = [
+    "cpp_python_demo @ file:///Users/aureliennioche/Documents/PythonProjects/setup-demo/cpp_python_demo"
+]
+
+[project.urls]
+"Homepage" = "https://example.com/pure_python_demo"
+
+# This tells setuptools to find packages under the 'src' directory.
+# So, 'src/pure_python_demo/__init__.py' and 'src/pure_python_demo/main.py'
+# would make 'pure_python_demo' a package.
+[tool.setuptools.packages.find]
+where = ["src"]
+# Alternatively, for explicit package listing:
+# [tool.setuptools]
+# packages = ["pure_python_demo"]
+# package_dir = {"" = "src"} 
