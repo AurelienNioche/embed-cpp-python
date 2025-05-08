@@ -2,4 +2,5 @@
 *.DS_Store
 .venv/
 *.egg-info
+*/__pycache__/
 compiled_firmware_output
