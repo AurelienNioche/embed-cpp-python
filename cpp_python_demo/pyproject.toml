@@ -1,7 +1,8 @@
 [build-system]
 requires = [
     "setuptools>=61.0",
-    "wheel"
+    "wheel",
+    "toml; python_version < '3.11'" # Add conditional build dependency for TOML parsing
     # "pybind11>=2.10" # Removed as cpp_python_demo itself is now a Python utility for compiling
 ]
 build-backend = "setuptools.build_meta"
@@ -26,6 +27,11 @@ classifiers = [
 "Homepage" = "https://example.com/cpp_python_demo"
 "Bug Tracker" = "https://example.com/cpp_python_demo/issues"
 
-# Optional: If you want to make your Python package importable
-[tool.setuptools.packages.find]
-where = ["python_src"] # Assuming your Python code for cpp_python_demo is in python_src 
+# Package finding is now implicit (root) or handled in setup.py
+# [tool.setuptools.packages.find]
+# where = ["python_src"] 
+
+[tool.setuptools]
+# Attempt to install files from MANIFEST.in (including root files)
+# into the package directory in site-packages.
+include-package-data = true

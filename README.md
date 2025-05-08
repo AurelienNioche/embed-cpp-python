@@ -1,89 +1,95 @@
-# Pure Python Demo (Uses cpp_python_demo to Compile Its Bundled C++ Tool)
+# Python/C++ Project Setup Demo
 
-This project, `pure_python_demo`, demonstrates how to use a separate Python library (`cpp_python_demo`) to compile a C++ tool that is *bundled within* `cpp_python_demo` itself, and then run the resulting executable.
+This setup demonstrates a way to bundle non-Python project files as installable package data, even when the development layout differs, allowing dependent Python projects to utilize the bundled resources via the installed package. 
+
+It involves two Python projects:
+
+1.  `cpp_python_demo`: A Python package that bundles a C++ project (managed by PlatformIO) and provides a Python function to compile it.
+2.  `pure_python_demo`: A Python application that depends on `cpp_python_demo` and uses its compilation function.
+
+The key goal is to show how the C++ project files (`platformio.ini`, `src/`) from `cpp_python_demo` can be packaged and installed into `site-packages` such that `pure_python_demo` can trigger the compilation using the installed version.
 
 ## Project Structure
 
 ```
 setup-demo/                     # Workspace root
-├── cpp_python_demo/            # The Python library for compiling its bundled C++
-│   ├── pyproject.toml
-│   ├── setup.py
-│   └── python_src/cpp_python_demo/
-│       ├── __init__.py
-│       ├── compiler.py         # Contains C++ compilation logic for internal tools
-│       └── internal_cpp_sources/
-│           └── sample_tool.cpp # Bundled C++ tool source
-└── pure_python_demo/           # This project
+├── cpp_python_demo/            # The Python library bundling C++
+│   ├── platformio.ini      # PlatformIO config (at root for dev)
+│   ├── src/                # C++ source (at root for dev)
+│   │   └── main.cpp
+│   ├── cpp_python_demo/      # The Python package itself
+│   │   ├── __init__.py
+│   │   └── compiler.py     # Contains compile_with_platformio
+│   ├── pyproject.toml      # Build system definition, project metadata
+│   └── setup.py            # Contains custom build logic for installation
+└── pure_python_demo/           # Application using the library
     ├── pyproject.toml
-    ├── src/
-    │   └── pure_python_demo/
-    │       ├── __init__.py
-    │       └── main.py         # Python script that uses cpp_python_demo
-    └── README.md               # This file
+    └── pure_python_demo/
+        ├── __init__.py
+        └── main.py         # Python script using installed cpp_python_demo
+
 ```
 
 ## Prerequisites
 
 - Python 3.7+
-- A C++ compiler (e.g., `clang++` or `g++`) installed and available in your system's PATH.
+- PlatformIO Core CLI (`pio`) installed and available in your system's `PATH`.
 - `uv` (a fast Python package installer and resolver).
-- The `cpp_python_demo` project source code must be present in the directory structure as shown, as `pure_python_demo` depends on it locally.
+- The two project directories (`cpp_python_demo`, `pure_python_demo`) should be siblings.
 
 ## How it Works
 
 1.  **`cpp_python_demo` Library**: 
-    *   This project is a Python library that now bundles its own C++ source files (e.g., `internal_cpp_sources/sample_tool.cpp`).
-    *   Its `setup.py` is configured with `package_data` to ensure these C++ source files are included when `cpp_python_demo` is installed.
-    *   The core functionality is in `cpp_python_demo.compiler.compile_internal_tool()`. This function:
-        *   Takes the name of an internal tool (e.g., "sample_tool").
-        *   Uses `importlib.resources` to locate the corresponding `.cpp` file within the installed `cpp_python_demo` package.
-        *   Invokes a system C++ compiler to build an executable from this bundled source.
+    *   Contains a PlatformIO project (`platformio.ini`, `src/`) at its root.
+    *   The Python package `cpp_python_demo` (inside the project) contains `compiler.py` with the function `compile_with_platformio`.
+    *   **Packaging**: This is the crucial part.
+        *   `setup.py` defines a custom build command (`CustomBuildPyCommand`). 
+        *   When `cpp_python_demo` is installed **normally (NOT editable)**, the custom build command runs and copies `platformio.ini` and `src/` from the project root into the package's build directory.
+        *   The installation process then places these copied files *inside* the final `site-packages/cpp_python_demo/` directory.
+    *   **Execution**: The `compiler.py` (when running from `site-packages`) uses `importlib.resources` to find `platformio.ini` and `src/` right next to it within `site-packages`. It then invokes `pio run` using these bundled files.
 
 2.  **`pure_python_demo` Project**: 
-    *   Lists `cpp_python_demo` as a local file dependency in its `pyproject.toml`.
-    *   When `pure_python_demo` is installed, the `cpp_python_demo` library (including its bundled C++ sources) will also be installed into the same Python environment.
-    *   The `pure_python_demo/src/pure_python_demo/main.py` script imports `compile_internal_tool` from `cpp_python_demo`.
-    *   It then calls this function, specifying the name of the internal tool it wants to compile (e.g., "sample_tool").
-    *   If compilation is successful, `main.py` attempts to run the newly created executable.
+    *   Lists `cpp_python_demo` as a local path dependency in its `pyproject.toml`.
+    *   When `pure_python_demo` is installed (using `uv pip install -e .` or `uv pip install .`), `uv` resolves and installs the `cpp_python_demo` dependency **normally** (triggering its custom build).
+    *   The `pure_python_demo/main.py` script imports `compile_with_platformio` from the *installed* `cpp_python_demo`.
+    *   It calls this function, which then operates on the PlatformIO files within `site-packages/cpp_python_demo/`.
+    *   It specifies a destination path within `pure_python_demo` where the final compiled firmware should be copied.
 
 ## Installation and Running
 
-1.  **Create and Activate a Virtual Environment**
-    Navigate to your workspace root (e.g., `setup-demo`):
+1.  **Create a virtual environment for `pure_python_demo`**
     ```bash
+    cd /path/to/your/setup-demo/pure_python_demo
     uv venv --python=3.10 .venv 
     source .venv/bin/activate
     ```
 
-2.  **Install `pure_python_demo` (which also installs `cpp_python_demo`)**
-    Navigate to the `pure_python_demo` directory:
-    ```bash
-    cd /path/to/your/setup-demo/pure_python_demo
-    ```
-    Install `pure_python_demo` in editable mode. This will also find and install the local `cpp_python_demo` library from `../cpp_python_demo`:
+2.  **Install `pure_python_demo`**
+    Install `pure_python_demo` itself (editably or normally) and crucially, it will resolve the 
+    path dependency and perform a **normal install** of `cpp_python_demo`, triggering its custom build step.
     ```bash
     uv pip install -e .
     ```
+    *Note: Use `--no-cache-dir` during testing to ensure fresh builds.* 
 
-3.  **Run the `pure_python_demo` Main Script**
-    This script will trigger the compilation of the C++ tool bundled within the `cpp_python_demo` library.
+3.  **Run the `pure_python_demo` main script**
     ```bash
-    python src/pure_python_demo/main.py
+    python pure_python_demo/main.py
     ```
 
-Expected Output (will include compiler messages from `cpp_python_demo`):
+Expected output:
 ```
 --- pure_python_demo: Main script started ---
-Attempting to compile internal tool 'sample_tool' from cpp_python_demo library...
-Attempting to compile internal tool: clang++ /path/to/.venv/lib/python3.10/site-packages/cpp_python_demo/internal_cpp_sources/sample_tool.cpp -o /path/to/setup-demo/pure_python_demo/build_output_internal/sample_tool_app -std=c++17
-Compilation successful. Executable at: /path/to/setup-demo/pure_python_demo/build_output_internal/sample_tool_app
-Attempting to run the compiled executable...
-Output from compiled executable:
-Hello from sample_tool (C++)! You passed: FromPurePythonDemo
-The sum of 1-5 is 15
-
+Attempting to compile firmware using installed cpp_python_demo (env: 'uno_example').
+Output will be copied to: /path/to/setup-demo/pure_python_demo/compiled_firmware_output/uno_firmware.elf
+Located PlatformIO project resources within installed package at: /path/to/setup-demo/pure_python_demo/.venv/lib/python3.10/site-packages/cpp_python_demo
+Attempting to compile PlatformIO project: pio run -d /path/to/setup-demo/pure_python_demo/.venv/lib/python3.10/site-packages/cpp_python_demo -e uno_example --verbose
+PlatformIO compilation successful.
+...
+Original firmware built at: /path/to/setup-demo/pure_python_demo/.venv/lib/python3.10/site-packages/cpp_python_demo/.pio/build/uno_example/firmware.elf
+Firmware copied to: /path/to/setup-demo/pure_python_demo/compiled_firmware_output/uno_firmware.elf
+Successfully compiled. Firmware is available at: /path/to/setup-demo/pure_python_demo/compiled_firmware_output/uno_firmware.elf
+Firmware was successfully copied to the desired location in pure_python_demo.
+This firmware is intended for a microcontroller (e.g., Arduino Uno) and is not directly runnable on this system.
 --- pure_python_demo: Main script finished ---
 ```
-
-This setup allows `cpp_python_demo` to act as a self-contained Python library that can deploy and compile its own C++ utility tools on demand when used by another Python project. 

@@ -1,28 +1,53 @@
-from setuptools import setup, find_packages
+import os
+import shutil
+import setuptools
+from setuptools.command.build_py import build_py
 
-__version__ = "0.0.1"
+# --- Configuration ---
+PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
+# Package is now at the root, its name is assumed based on directory
+PACKAGE_NAME = 'cpp_python_demo' 
+# --- End Configuration ---
 
-setup(
-    name="cpp_python_demo", # This should match the name in pyproject.toml
-    version=__version__,
-    author="Demo User",
-    author_email="demo@example.com",
-    description="A Python library that bundles and compiles its own C++ tools", # Updated description
-    long_description="This library provides utilities to compile C++ tools bundled within it.",
-    # No C++ extensions for cpp_python_demo itself in this model
-    # ext_modules=ext_modules, 
-    # cmdclass={"build_ext": build_ext},
-    packages=find_packages(where="python_src"), # Find packages in python_src
-    package_dir={"": "python_src"},             # Root package is in python_src
-    # Ensure that the C++ source files are included in the package
-    package_data={
-        "cpp_python_demo": ["internal_cpp_sources/*.cpp"],
+class CustomBuildPyCommand(build_py):
+    """Custom build command to copy root files into the package build dir."""
+    def run(self):
+        build_py.run(self)
+
+        platformio_ini_src = os.path.join(PROJECT_ROOT, 'platformio.ini')
+        src_dir_src = os.path.join(PROJECT_ROOT, 'src')
+
+        target_dir = None
+        if self.build_lib:
+            # Construct target path using the package name
+            target_dir = os.path.join(self.build_lib, PACKAGE_NAME)
+            
+        if target_dir and os.path.isdir(target_dir):
+            print(f'Custom build: Copying root files to {target_dir}')
+            
+            if os.path.isfile(platformio_ini_src):
+                print(f'  Copying {platformio_ini_src} to {target_dir}')
+                shutil.copy(platformio_ini_src, target_dir)
+            else:
+                print(f'  Warning: {platformio_ini_src} not found, skipping copy.')
+
+            if os.path.isdir(src_dir_src):
+                target_src_dir = os.path.join(target_dir, 'src')
+                print(f'  Copying directory {src_dir_src} to {target_src_dir}')
+                if os.path.exists(target_src_dir):
+                    shutil.rmtree(target_src_dir)
+                shutil.copytree(src_dir_src, target_src_dir)
+            else:
+                print(f'  Warning: {src_dir_src} not found, skipping copy.')
+        else:
+            print('Custom build: Target build directory not found, skipping root file copy.')
+
+# Minimal setup() call
+setuptools.setup(
+    # Metadata is primarily in pyproject.toml
+    # Need packages specified now that find isn't used in pyproject.toml
+    packages=[PACKAGE_NAME], 
+    cmdclass={
+        'build_py': CustomBuildPyCommand,
     },
-    include_package_data=True, # Often used with package_data, though MANIFEST.in is more robust for sdists
-    zip_safe=False,
-    python_requires=">=3.7",
-    # Add any runtime dependencies for cpp_python_demo itself here, if any (e.g., "click" for CLI)
-    install_requires=[
-        # e.g., "shutilwhich>=1.1.0", if you need to ensure compiler existence
-    ],
 ) 

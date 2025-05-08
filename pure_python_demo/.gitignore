@@ -2,4 +2,4 @@
 *.DS_Store
 .venv/
 *.egg-info
-dist/
+compiled_firmware_output
